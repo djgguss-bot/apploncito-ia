@@ -16,14 +16,6 @@ import gdown
 
 app = FastAPI()
 
-file_id = '1cl0hwVdrbfllKO8i20VV2rTK9WG6Mx95'
-url = f'https://drive.google.com/uc?id={file_id}'
-output = 'modelo_huellas_v2.h5'
-
-if not os.path.exists(output):
-    print("Descargando modelo desde Google Drive...")
-    gdown.download(url, output, quiet=False)
-
 # --- SEGURIDAD ---
 app.add_middleware(
     CORSMiddleware,
@@ -33,16 +25,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- 1. CARGA DE IA (MODO EXTRACTOR) ---
+# --- 1. DESCARGA AUTOMÁTICA Y CARGA DE IA ---
 print("--- INICIANDO SERVIDOR APPLONCITO CLOUD ---")
+
+file_id = '1cl0hwVdrbfllKO8i20VV2rTK9WG6Mx95'
+url = f'https://drive.google.com/uc?id={file_id}'
+output = 'modelo_huellas_v2.h5'
+
+# Descargar si no existe
+if not os.path.exists(output):
+    print("📥 Descargando modelo desde Google Drive...")
+    try:
+        gdown.download(url, output, quiet=False)
+        print("✅ Descarga finalizada.")
+    except Exception as e:
+        print(f"❌ Error descargando de Drive: {e}")
+
+# Intentar Cargar el modelo
 try:
-    # IMPORTANTE: El archivo modelo_huellas_v2.h5 DEBE estar en tu GitHub
-    modelo_base = load_model("modelo_huellas_v2.h5")
+    modelo_base = load_model(output)
     nombre_capa_features = modelo_base.layers[-2].name 
     modelo = Model(inputs=modelo_base.input, outputs=modelo_base.get_layer(nombre_capa_features).output)
-    print("✅ IA Lista: MODO CLOUD")
+    print("✅ IA Lista: MODO CLOUD (Modelo Propio)")
 except Exception as e:
-    print(f"⚠️ Cargando ResNet50 por defecto: {e}")
+    print(f"⚠️ Error cargando modelo .h5: {e}")
+    print("🔄 Usando ResNet50 como respaldo...")
     from tensorflow.keras.applications import ResNet50
     modelo = ResNet50(weights='imagenet', include_top=False, pooling='avg')
 
@@ -85,8 +92,6 @@ def generar_diagnostico(probabilidad):
 
 # --- 5. GUARDAR HISTORIAL ---
 def guardar_historial(probabilidad, diagnostico):
-    # En Render, los archivos se borran al reiniciar a menos que uses un disco persistente.
-    # Por ahora, esto guardará en la carpeta temporal del servidor.
     archivo_csv = "/tmp/historial_pruebas.csv" 
     datos = {
         "Fecha": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
@@ -97,9 +102,10 @@ def guardar_historial(probabilidad, diagnostico):
     header = not os.path.exists(archivo_csv)
     df.to_csv(archivo_csv, mode='a', header=header, index=False, sep=';', encoding='utf-8-sig')
 
-# --- 6. ENDPOINT (Sincronizado con Android) ---
+# --- 6. ENDPOINT ---
 @app.post("/analizar_parentesco")
 async def analizar_parentesco(foto_padre: UploadFile = File(...), foto_hijo: UploadFile = File(...)):
+    print(f"\n📸 Procesando nueva solicitud desde la App...")
     try:
         img_p = preparar_imagen(await foto_padre.read())
         img_h = preparar_imagen(await foto_hijo.read())
@@ -118,6 +124,7 @@ async def analizar_parentesco(foto_padre: UploadFile = File(...), foto_hijo: Upl
             "color_hex": diag["color"]
         })
     except Exception as e:
+        print(f"❌ Error: {e}")
         return JSONResponse(content={"probabilidad": 0, "mensaje": f"Error: {str(e)}"}, status_code=500)
 
 if __name__ == "__main__":
