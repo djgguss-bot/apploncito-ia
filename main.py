@@ -28,7 +28,7 @@ app.add_middleware(
 # --- 1. DESCARGA AUTOMÁTICA Y CARGA DE IA ---
 print("--- INICIANDO SERVIDOR APPLONCITO CLOUD ---")
 
-file_id = '1cl0hwVdrbfllKO8i20VV2rTK9WG6Mx95'
+file_id = '13hF-8e0E1AAqvq4LNoHk46K90B99_9b4'
 url = f'https://drive.google.com/uc?id={file_id}'
 output = 'modelo_huellas_v2.h5'
 
@@ -130,4 +130,5 @@ async def analizar_parentesco(foto_padre: UploadFile = File(...), foto_hijo: Upl
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
 
